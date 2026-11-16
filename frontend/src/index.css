@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+  }
+}
+
+@keyframes logout-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes logout-notice-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.logout-dialog-enter {
+  animation: logout-dialog-enter 180ms ease-out both;
+}
+
+.logout-notice-enter {
+  animation: logout-notice-enter 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logout-dialog-enter,
+  .logout-notice-enter {
+    animation: none;
+  }
+}
