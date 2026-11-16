@@ -1,0 +1,1499 @@
+openapi: 3.0.3
+info:
+  title: CertVerify API
+  version: 1.0.0
+  description: >
+    OpenAPI 3.0.3 specification and API design contract for the Online Certificate Verification and Validation System (CertVerify).
+    
+    This specification establishes the RESTful API architecture for digital credential issuing institutions,
+    administrative governance, and public verification via human-readable Certificate IDs and dynamic QR codes.
+    
+    Status: Proposed API Specification. This API design is directly derived from and aligned with the project's
+    Functional Requirements Specification (CVS-FRS-001 v1.1), Software Requirements Specification (SRS),
+    System Architecture Document (CVS-ARC-001), and Database Design Document (CVS-DBD-001). Backend implementation
+    is planned for the upcoming project implementation sprint.
+  contact:
+    name: CertVerify Architecture & Engineering Team
+    email: api-support@certverify.local
+  license:
+    name: Educational / Project License
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://127.0.0.1:8000/api
+    description: Local Django REST Framework development server
+  - url: https://staging-api.certverify.local/api
+    description: Staging server (Proposed)
+tags:
+  - name: Authentication
+    description: User authentication, JWT credential exchange, and token refresh workflows.
+  - name: Account Security
+    description: Authenticated user self-service password updates and credential lifecycle management.
+  - name: Institutions
+    description: Educational and authorized organizational entity registration and profile management.
+  - name: Certificates
+    description: Digital certificate creation, metadata updating, status lifecycle transitions, QR code assets, and PDF export.
+  - name: Public Verification
+    description: Publicly accessible unauthenticated endpoints for verifying credentials via Certificate ID or QR scan URL.
+  - name: Verification History
+    description: Historical logs and query filters for public and administrative certificate verification requests.
+  - name: Dashboard and Reports
+    description: Operational summary metrics, aggregated system statistics, and date-range verification analytics.
+  - name: Audit Log
+    description: Administrator-only immutable security and governance audit trail for sensitive system events.
+security:
+  - bearerAuth: []
+paths:
+  /auth/login/:
+    post:
+      tags: [Authentication]
+      summary: Log in and obtain JWT token pair
+      description: >
+        Authenticates an institution administrator or staff user using username and password credentials.
+        Returns a JSON Web Token (JWT) access token (short-lived) and refresh token (long-lived).
+        Proposed endpoint.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful. Returns JWT access and refresh token pair.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/token/refresh/:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT access token
+      description: >
+        Submits a valid JWT refresh token to issue a renewed access token without prompting for user credentials.
+        Proposed endpoint.
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: Access token refreshed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefreshResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/change-password/:
+    post:
+      tags: [Account Security]
+      summary: Change current user password
+      description: >
+        Allows an authenticated user to change their account password. Verifies the current password
+        and enforces password complexity policies. Proposed endpoint.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /institutions/:
+    get:
+      tags: [Institutions]
+      summary: List institution records
+      description: >
+        Retrieves a paginated list of registered educational institutions and organizations.
+        Supports keyword searching across institution name and registration number. Proposed endpoint.
+      operationId: listInstitutions
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Paginated institution list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInstitutions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Institutions]
+      summary: Create an institution
+      description: >
+        Registers a new educational institution or issuing entity.
+        Restricted to authorized system administrators. Proposed endpoint.
+      operationId: createInstitution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstitutionInput'
+      responses:
+        '201':
+          description: Institution created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Institution'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /institutions/{institutionId}/:
+    parameters:
+      - $ref: '#/components/parameters/InstitutionId'
+    get:
+      tags: [Institutions]
+      summary: Retrieve institution details
+      description: >
+        Returns full profile information for an institution by its numeric database identifier.
+        Proposed endpoint.
+      operationId: getInstitution
+      responses:
+        '200':
+          description: Institution details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Institution'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Institutions]
+      summary: Update institution details
+      description: >
+        Updates one or more fields of an existing institution profile.
+        Proposed endpoint.
+      operationId: updateInstitution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstitutionUpdateInput'
+      responses:
+        '200':
+          description: Institution updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Institution'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/:
+    get:
+      tags: [Certificates]
+      summary: Search and list certificates
+      description: >
+        Returns a paginated list of certificate records. Supports keyword search across holder name
+        and programme title, status filtering, date range constraints, and ordering. Proposed endpoint.
+      operationId: listCertificates
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Search'
+        - name: status
+          in: query
+          description: Filter certificates by active lifecycle status
+          schema:
+            type: string
+            enum: [Active, Inactive, Revoked]
+        - name: ordering
+          in: query
+          description: Field sorting criteria, e.g., 'issue_date' or '-created_at'
+          schema:
+            type: string
+            example: "-issue_date"
+        - name: issue_date_from
+          in: query
+          description: Filter certificates issued on or after this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: issue_date_to
+          in: query
+          description: Filter certificates issued on or before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: institution_id
+          in: query
+          description: Filter certificates issued by a specific institution ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated certificate records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCertificates'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Certificates]
+      summary: Create a certificate and generate a unique Certificate ID
+      description: >
+        Issues a new digital certificate record. Automatically generates a unique, human-readable
+        Certificate ID (e.g. CV-7K3M9QX2TD), provisions the public verification link, and records an
+        audit log entry. Proposed endpoint.
+      operationId: createCertificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificateInput'
+      responses:
+        '201':
+          description: Certificate created successfully with generated Certificate ID and QR Code reference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/{certificateId}/:
+    parameters:
+      - $ref: '#/components/parameters/CertificateId'
+    get:
+      tags: [Certificates]
+      summary: Retrieve certificate details
+      description: >
+        Retrieves full administrative details of a single certificate using its unique Certificate ID.
+        Proposed endpoint.
+      operationId: getCertificate
+      responses:
+        '200':
+          description: Certificate details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Certificates]
+      summary: Update certificate information
+      description: >
+        Modifies editable attributes of an existing certificate (holder name, programme title,
+        expiry date, description). The Certificate ID itself is immutable. Proposed endpoint.
+      operationId: updateCertificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificateUpdateInput'
+      responses:
+        '200':
+          description: Certificate updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/{certificateId}/status/:
+    patch:
+      tags: [Certificates]
+      summary: Change certificate status
+      description: >
+        Updates the operational status of a certificate (Active, Inactive, Revoked).
+        Requires an administrative reason which is recorded in the audit trail. Proposed endpoint.
+      operationId: updateCertificateStatus
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificateStatusUpdate'
+      responses:
+        '200':
+          description: Certificate status updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/{certificateId}/qr/:
+    get:
+      tags: [Certificates]
+      summary: Retrieve QR Code verification resource
+      description: >
+        Returns QR code metadata and direct URLs for rendering or embedding the QR code.
+        Proposed endpoint.
+      operationId: getCertificateQrCode
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          description: QR code metadata and verification URLs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateQrCodeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/{certificateId}/pdf/:
+    get:
+      tags: [Certificates]
+      summary: Download certificate PDF
+      description: >
+        Dynamically renders and streams an official PDF certificate for the designated certificate record.
+        Subject to role-based access permissions. Proposed endpoint.
+      operationId: downloadCertificatePdf
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          description: Certificate PDF binary stream.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /certificates/{certificateId}/file/:
+    post:
+      tags: [Certificates]
+      summary: Upload supporting certificate document
+      description: >
+        Uploads an optional supporting document (PDF/PNG/JPEG) for the certificate record.
+        Enforces file size and MIME-type restrictions. Proposed endpoint (per FRS Section 25).
+      operationId: uploadCertificateFile
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Supporting document file (PDF, PNG, JPG; max 5MB)
+      responses:
+        '201':
+          description: File uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateFileUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /verify/:
+    get:
+      tags: [Public Verification]
+      summary: Verify certificate by Certificate ID query parameter
+      description: >
+        Public verification endpoint allowing any verifier (employer, institution, third party)
+        to check validity and status using a Certificate ID query parameter. Automatically logs verification
+        outcome. Proposed endpoint.
+      operationId: verifyCertificateByQuery
+      security: []
+      parameters:
+        - name: certificate_id
+          in: query
+          required: true
+          description: Public unique Certificate ID
+          schema:
+            type: string
+          example: CV-7K3M9QX2TD
+      responses:
+        '200':
+          description: Verification outcome with details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /verify/{certificateId}/:
+    get:
+      tags: [Public Verification]
+      summary: Verify certificate via QR Code scan URL
+      description: >
+        Public endpoint targeted by the printed or embedded QR code URL.
+        Returns the certificate verification status and logs the verification event. Proposed endpoint.
+      operationId: verifyCertificateByQrUrl
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CertificateId'
+      responses:
+        '200':
+          description: Verification outcome (Valid, Inactive, or Revoked).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Certificate not found; returns structured verification result with 'Not Found' status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationResult'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /verification-history/:
+    get:
+      tags: [Verification History]
+      summary: View verification activity history
+      description: >
+        Returns a paginated history of certificate verification attempts.
+        Supports filtering by certificate ID, date range, verification outcome, and method. Proposed endpoint.
+      operationId: listVerificationHistory
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: certificate_id
+          in: query
+          description: Filter by specific certificate ID
+          schema:
+            type: string
+        - name: verified_from
+          in: query
+          description: Filter verifications on or after this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: verified_to
+          in: query
+          description: Filter verifications on or before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: outcome
+          in: query
+          description: Filter by verification result outcome
+          schema:
+            type: string
+            enum: [Valid, Invalid, Revoked, Not Found]
+        - name: verification_method
+          in: query
+          description: Filter by verification method (direct ID lookup or QR code scan)
+          schema:
+            type: string
+            enum: [ID, QR]
+      responses:
+        '200':
+          description: Paginated verification audit logs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVerificationRecords'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /dashboard/summary/:
+    get:
+      tags: [Dashboard and Reports]
+      summary: Get certificate and verification summary statistics
+      description: >
+        Provides aggregated statistics for administrative dashboards, including total certificates,
+        status distribution counts, and recent verification volume. Proposed endpoint.
+      operationId: getDashboardSummary
+      responses:
+        '200':
+          description: Aggregated dashboard summary statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /reports/verification-activity/:
+    get:
+      tags: [Dashboard and Reports]
+      summary: Get verification activity report for a date range
+      description: >
+        Generates an activity report aggregating verification volume and itemized logs
+        over a specified date interval. Proposed endpoint.
+      operationId: getVerificationActivityReport
+      parameters:
+        - name: date_from
+          in: query
+          required: false
+          description: Start date of reporting period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: false
+          description: End date of reporting period (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Verification activity report.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationActivityReport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /audit-log/:
+    get:
+      tags: [Audit Log]
+      summary: View administrator audit entries
+      description: >
+        Retrieves a paginated list of security audit entries tracking critical administrative actions
+        (creation, updates, status changes, credentials modifications). Restricted to administrators.
+        Proposed endpoint.
+      operationId: listAuditLogs
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: action
+          in: query
+          description: Filter by action type (e.g. CERTIFICATE_CREATED, STATUS_CHANGED)
+          schema:
+            type: string
+        - name: actor
+          in: query
+          description: Filter by user/actor username
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          description: Filter entries on or after this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter entries on or before this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated audit log records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditEntries'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT access token obtained from /auth/login/. Format: Bearer <token>"
+  parameters:
+    CertificateId:
+      name: certificateId
+      in: path
+      required: true
+      description: Public unique human-readable Certificate ID (e.g. CV-7K3M9QX2TD), not the internal database ID
+      schema:
+        type: string
+      example: CV-7K3M9QX2TD
+    InstitutionId:
+      name: institutionId
+      in: path
+      required: true
+      description: Internal database primary key ID of the institution
+      schema:
+        type: integer
+      example: 1
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Page number for paginated result sets (defaults to 1)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      description: Number of records to return per page (defaults to 10, maximum 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      example: 10
+    Search:
+      name: search
+      in: query
+      required: false
+      description: Text search term to filter results across primary text fields
+      schema:
+        type: string
+      example: "Cybersecurity"
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: admin
+          description: System username or email address
+        password:
+          type: string
+          format: password
+          example: "Admin@12345"
+          description: User account password
+    TokenResponse:
+      type: object
+      required:
+        - access
+        - refresh
+      properties:
+        access:
+          type: string
+          description: Short-lived JSON Web Token for authorizing API requests (Bearer)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh:
+          type: string
+          description: Long-lived refresh token used to obtain a new access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    TokenRefreshRequest:
+      type: object
+      required:
+        - refresh
+      properties:
+        refresh:
+          type: string
+          description: Valid JWT refresh token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    TokenRefreshResponse:
+      type: object
+      required:
+        - access
+      properties:
+        access:
+          type: string
+          description: Newly issued short-lived JWT access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    ChangePasswordRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+        - confirm_password
+      properties:
+        current_password:
+          type: string
+          format: password
+          description: Existing password of the authenticated user
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: New password meeting complexity rules (minimum 8 characters)
+        confirm_password:
+          type: string
+          format: password
+          description: Confirmation matching new_password exactly
+    MessageResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: "Password changed successfully."
+    Institution:
+      type: object
+      required:
+        - id
+        - institution_name
+        - contact_email
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          example: 1
+          description: Unique internal numeric database identifier
+        institution_name:
+          type: string
+          maxLength: 200
+          example: "Apex Institute of Technology"
+          description: Legal name of the educational or issuing institution
+        registration_number:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: "REG-2026-EDU-8821"
+          description: Official government or regulatory accreditation number
+        address:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "100 Knowledge Boulevard, Innovation District"
+          description: Physical mailing address of the institution
+        contact_email:
+          type: string
+          format: email
+          maxLength: 254
+          example: "registrar@apexinstitute.edu"
+          description: Official administrative contact email
+        contact_phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "+1-555-019-2831"
+          description: Primary telephone contact
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+          nullable: true
+          example: "https://www.apexinstitute.edu"
+          description: Official web portal URL
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-10-05T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-10-12T14:30:00Z"
+    InstitutionInput:
+      type: object
+      required:
+        - institution_name
+        - contact_email
+      properties:
+        institution_name:
+          type: string
+          maxLength: 200
+          example: "Apex Institute of Technology"
+          description: Legal name of the institution
+        registration_number:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: "REG-2026-EDU-8821"
+          description: Government accreditation or registration number
+        address:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "100 Knowledge Boulevard, Innovation District"
+        contact_email:
+          type: string
+          format: email
+          maxLength: 254
+          example: "registrar@apexinstitute.edu"
+        contact_phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "+1-555-019-2831"
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+          nullable: true
+          example: "https://www.apexinstitute.edu"
+    InstitutionUpdateInput:
+      type: object
+      properties:
+        institution_name:
+          type: string
+          maxLength: 200
+          example: "Apex Institute of Technology"
+        registration_number:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: "REG-2026-EDU-8821"
+        address:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: "100 Knowledge Boulevard, Innovation District"
+        contact_email:
+          type: string
+          format: email
+          maxLength: 254
+          example: "registrar@apexinstitute.edu"
+        contact_phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          example: "+1-555-019-2831"
+        website:
+          type: string
+          format: uri
+          maxLength: 200
+          nullable: true
+          example: "https://www.apexinstitute.edu"
+    Certificate:
+      allOf:
+        - $ref: '#/components/schemas/CertificateInput'
+        - type: object
+          required:
+            - id
+            - certificate_id
+            - status
+            - created_at
+            - updated_at
+          properties:
+            id:
+              type: integer
+              readOnly: true
+              example: 101
+              description: Internal database primary key
+            certificate_id:
+              type: string
+              readOnly: true
+              example: "CV-7K3M9QX2TD"
+              description: Unique human-readable Certificate Identifier
+            institution_name:
+              type: string
+              readOnly: true
+              example: "Apex Institute of Technology"
+              description: Resolved name of the issuing institution
+            status:
+              type: string
+              enum: [Active, Inactive, Revoked]
+              example: "Active"
+              description: Current lifecycle state of the credential
+            qr_code_url:
+              type: string
+              format: uri
+              nullable: true
+              example: "https://api.certverify.local/api/verify/CV-7K3M9QX2TD/"
+              description: Direct URL encoded inside the QR code for verification
+            created_at:
+              type: string
+              format: date-time
+              readOnly: true
+              example: "2026-10-10T11:20:00Z"
+            updated_at:
+              type: string
+              format: date-time
+              readOnly: true
+              example: "2026-10-12T16:45:00Z"
+    CertificateInput:
+      type: object
+      required:
+        - holder_name
+        - programme_title
+        - institution_id
+        - issue_date
+      properties:
+        holder_name:
+          type: string
+          maxLength: 200
+          example: "Jane Doe"
+          description: Full legal name of the certificate recipient
+        programme_title:
+          type: string
+          maxLength: 200
+          example: "Advanced Cybersecurity Specialist Certification"
+          description: Academic or vocational credential title
+        institution_id:
+          type: integer
+          example: 1
+          description: Foreign key reference to the issuing institution
+        issue_date:
+          type: string
+          format: date
+          example: "2026-10-10"
+          description: Date of issuance (cannot be in the future)
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2028-10-10"
+          description: Optional expiration date for time-limited qualifications
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: "Completed 120 contact hours and passed comprehensive examination with Distinction."
+          description: Optional narrative details or honours description
+    CertificateUpdateInput:
+      type: object
+      properties:
+        holder_name:
+          type: string
+          maxLength: 200
+          example: "Jane Doe"
+        programme_title:
+          type: string
+          maxLength: 200
+          example: "Advanced Cybersecurity Specialist Certification"
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2028-10-10"
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: "Updated honours note."
+    CertificateStatusUpdate:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [Active, Inactive, Revoked]
+          example: "Revoked"
+          description: New lifecycle status to assign
+        reason:
+          type: string
+          maxLength: 500
+          example: "Administrative revocation requested due to academic misconduct review."
+          description: Reason for status change, logged in the audit trail
+    CertificateQrCodeResponse:
+      type: object
+      required:
+        - certificate_id
+        - verification_url
+      properties:
+        certificate_id:
+          type: string
+          example: "CV-7K3M9QX2TD"
+          description: Unique certificate identifier
+        verification_url:
+          type: string
+          format: uri
+          example: "https://certverify.example.com/verify/CV-7K3M9QX2TD/"
+          description: Full public URL destination encoded in QR code
+        qr_code_url:
+          type: string
+          format: uri
+          example: "https://api.certverify.example.com/media/qr/CV-7K3M9QX2TD.png"
+          description: URL pointing to generated QR image file
+        qr_code_base64:
+          type: string
+          nullable: true
+          description: Optional base64-encoded PNG image for immediate inline rendering
+    CertificateFileUploadResponse:
+      type: object
+      required:
+        - id
+        - certificate_id
+        - original_name
+        - file_size
+        - uploaded_at
+      properties:
+        id:
+          type: integer
+          example: 42
+        certificate_id:
+          type: string
+          example: "CV-7K3M9QX2TD"
+        original_name:
+          type: string
+          example: "supporting_transcripts.pdf"
+        file_size:
+          type: integer
+          example: 245120
+          description: File size in bytes
+        content_type:
+          type: string
+          example: "application/pdf"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: "2026-10-12T16:50:00Z"
+    VerificationResult:
+      type: object
+      required:
+        - certificate_id
+        - status
+        - message
+      properties:
+        certificate_id:
+          type: string
+          example: "CV-7K3M9QX2TD"
+          description: Queried certificate identifier
+        status:
+          type: string
+          enum: [Valid, Invalid, Revoked, Not Found]
+          example: "Valid"
+          description: Outcome of verification
+        message:
+          type: string
+          example: "Certificate is authentic and active."
+          description: Human-readable verification description
+        holder_name:
+          type: string
+          nullable: true
+          example: "Jane Doe"
+          description: Name on certificate (null if status is Not Found)
+        programme_title:
+          type: string
+          nullable: true
+          example: "Advanced Cybersecurity Specialist Certification"
+          description: Credential programme title
+        institution_name:
+          type: string
+          nullable: true
+          example: "Apex Institute of Technology"
+          description: Issuing institution name
+        issue_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2026-10-10"
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+          example: "2028-10-10"
+        verified_at:
+          type: string
+          format: date-time
+          example: "2026-10-14T12:00:00Z"
+          description: Timestamp when verification check was executed
+    VerificationRecord:
+      type: object
+      required:
+        - id
+        - outcome
+        - verification_method
+        - verified_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+          description: Unique verification event UUID
+        certificate_id:
+          type: string
+          nullable: true
+          example: "CV-7K3M9QX2TD"
+          description: Target Certificate ID queried
+        verification_method:
+          type: string
+          enum: [ID, QR]
+          example: "QR"
+          description: Method used to initiate verification
+        outcome:
+          type: string
+          enum: [Valid, Invalid, Revoked, Not Found]
+          example: "Valid"
+          description: Result of the verification attempt
+        verified_at:
+          type: string
+          format: date-time
+          example: "2026-10-14T11:45:00Z"
+        source_ip:
+          type: string
+          nullable: true
+          example: "192.0.2.1"
+          description: Masked or logged client IP address
+        user_agent:
+          type: string
+          nullable: true
+          example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)..."
+          description: Client browser or scanner user agent
+    DashboardSummary:
+      type: object
+      required:
+        - total_certificates
+        - active
+        - inactive
+        - revoked
+        - verifications_last_7_days
+      properties:
+        total_certificates:
+          type: integer
+          example: 1240
+          description: Cumulative count of certificates issued
+        active:
+          type: integer
+          example: 1180
+          description: Total count of active, verifiable certificates
+        inactive:
+          type: integer
+          example: 45
+          description: Total certificates in inactive state
+        revoked:
+          type: integer
+          example: 15
+          description: Total revoked certificates
+        verifications_last_7_days:
+          type: integer
+          example: 382
+          description: Verification requests recorded within the trailing 7-day period
+    VerificationActivityReport:
+      type: object
+      required:
+        - date_from
+        - date_to
+        - total_verifications
+        - results
+      properties:
+        date_from:
+          type: string
+          format: date
+          example: "2026-10-01"
+          description: Start date of report window
+        date_to:
+          type: string
+          format: date
+          example: "2026-10-14"
+          description: End date of report window
+        total_verifications:
+          type: integer
+          example: 154
+          description: Total verifications performed in the interval
+        breakdown_by_outcome:
+          type: object
+          properties:
+            valid:
+              type: integer
+              example: 140
+            invalid:
+              type: integer
+              example: 4
+            revoked:
+              type: integer
+              example: 2
+            not_found:
+              type: integer
+              example: 8
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationResult'
+    AuditEntry:
+      type: object
+      required:
+        - id
+        - actor
+        - action
+        - target_reference
+        - timestamp
+      properties:
+        id:
+          type: integer
+          example: 501
+          description: Unique audit event database sequence ID
+        actor:
+          type: string
+          example: "admin_user"
+          description: Username or identifier of the user who performed the action
+        action:
+          type: string
+          example: "CERTIFICATE_REVOKED"
+          description: Action category identifier
+        target_reference:
+          type: string
+          example: "CV-7K3M9QX2TD"
+          description: Key or identifier of the affected entity
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-10-12T16:45:00Z"
+        summary:
+          type: string
+          nullable: true
+          example: "Status changed from Active to Revoked. Reason: Academic review."
+    PaginatedInstitutions:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 15
+        next:
+          type: string
+          format: uri
+          nullable: true
+          example: "http://127.0.0.1:8000/api/institutions/?page=2"
+        previous:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Institution'
+    PaginatedCertificates:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 1240
+        next:
+          type: string
+          format: uri
+          nullable: true
+          example: "http://127.0.0.1:8000/api/certificates/?page=2"
+        previous:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Certificate'
+    PaginatedVerificationRecords:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 382
+        next:
+          type: string
+          format: uri
+          nullable: true
+          example: "http://127.0.0.1:8000/api/verification-history/?page=2"
+        previous:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationRecord'
+    PaginatedAuditEntries:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 89
+        next:
+          type: string
+          format: uri
+          nullable: true
+          example: "http://127.0.0.1:8000/api/audit-log/?page=2"
+        previous:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: "Validation failed for submitted payload."
+          description: High-level descriptive error summary
+        errors:
+          type: object
+          additionalProperties: true
+          example:
+            holder_name:
+              - "This field is required."
+            issue_date:
+              - "Date cannot be in the future."
+          description: Field-level validation error messages
+  responses:
+    BadRequest:
+      description: Bad Request - Request payload or query validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized - Authentication credentials are missing, invalid, or expired.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Forbidden - Authenticated user lacks sufficient permissions for this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found - The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflict - A resource with the specified identifier or unique constraint already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Internal Server Error - An unexpected condition occurred on the server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
